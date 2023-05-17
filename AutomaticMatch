@@ -1,0 +1,137 @@
+#```python
+import chess
+import chess.engine
+import chess.pgn
+import chess.polyglot
+import time
+from io import StringIO
+import pygame  
+import random
+
+def get_piece_name(piece):
+    if piece.color == chess.WHITE:
+        color = "w"
+    else:
+        color = "b"
+
+    return color + piece.symbol().lower()
+
+def display_move(move: chess.Move, board: chess.Board) -> None:
+    turn_name = "White" if board.turn == chess.WHITE else "Black"
+    move_san = board.san(move)  # Get SAN of the move before pushing it
+    print("{} played: {}".format(turn_name, move_san))
+
+def load_images():
+    images = {}
+    pieces = ['wp', 'wr', 'wn', 'wb', 'wq', 'wk',
+              'bp', 'br', 'bn', 'bb', 'bq', 'bk']
+    for piece in pieces:
+        images[piece] = pygame.image.load(f"Resources/{piece}.png")
+    return images
+
+def draw_board(screen, board, images):
+    for rank in range(8):
+        for file in range(8):
+            rotated_file = 7 - rank  
+            rotated_rank = file  
+            
+            square = (rotated_rank, rotated_file)
+            sqr_color = (
+                (218, 233, 242) if (rank + file) % 2 == 0 else (110, 153, 192))
+            sqr_rect = pygame.Rect(rotated_file * 100, rotated_rank * 100, 100, 100)
+            pygame.draw.rect(screen, sqr_color, sqr_rect)
+            piece = board.piece_at(chess.square(rank, file))
+            if piece:
+                img = images[get_piece_name(piece)]
+                screen.blit(img, sqr_rect.topleft)
+    pygame.display.flip()
+
+opening_book_path = "C:\\Users\\Public\\Documents\\AutomaticChess\\mainbook.bin"
+
+def get_book_move(board):
+    with chess.polyglot.open_reader(opening_book_path) as reader:
+        entries = list(reader.find_all(board))
+        if entries:
+            return random.choice(entries).move
+    return None
+
+def save_game_to_pgn(board):
+    new_game = chess.pgn.Game.from_board(board)
+
+    new_game.headers["White"] = "{}".format(engine1.id["name"]) # Add this line
+    new_game.headers["Black"] = "{}".format(engine2.id["name"]) # Add this line
+
+    with open("game.pgn", "r") as pgn_file:
+        games = [chess.pgn.read_game(pgn_file) for _ in pgn_file]
+
+    games.append(new_game)
+
+    with open("game.pgn", "w") as pgn_file:
+        for game in games:
+            pgn_file.write(str(game) + "\n\n")
+
+def play_match(engine1, engine2, num_games=10):
+    match_results = {'white_wins': 0, 'black_wins': 0, 'draws': 0}
+
+    for game_num in range(num_games):
+        print(f"Game {game_num + 1}:")
+        board = chess.Board()
+
+        # Use opening book for first few moves
+        for i in range(200):
+            book_move = get_book_move(board)
+            if book_move:
+                san_move = board.san(book_move)
+                board.push(book_move)
+                print(board)
+            else:
+                break
+
+        # Play the game
+        running = True
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+
+            if not board.is_game_over():
+                current_engine = engine1 if board.turn == chess.WHITE else engine2
+                engine_move = current_engine.play(board, limit=chess.engine.Limit(time=2.2))
+                display_move(engine_move.move, board)
+                board.push(engine_move.move)
+                images = load_images()
+                draw_board(screen, board, images)
+                time.sleep(1.1)
+            else:
+                result = board.result()
+                if result == '1-0':
+                    match_results['white_wins'] += 1
+                elif result == '0-1':
+                    match_results['black_wins'] += 1
+                else:
+                    match_results['draws'] += 1
+
+                save_game_to_pgn(board)
+                print(f"Result: {result}")
+                
+                if game_num < num_games - 1:  # If this wasn't the last game
+                    time.sleep(2) 
+                break
+    return match_results
+
+
+pygame.init()
+screen = pygame.display.set_mode((800, 800))
+pygame.display.set_caption("Chess Game")
+
+engine1 = chess.engine.SimpleEngine.popen_uci("C:\\Users\\Public\\Documents\\AutomaticChess\\dragon-3.2-64bit.exe")
+engine2 = chess.engine.SimpleEngine.popen_uci("C:\\Users\\Public\\Documents\\AutomaticChess\\stockfish_23050720_x64_modern.exe")
+
+time.sleep(5)
+
+match_results = play_match(engine1, engine2, 10)
+print(match_results)
+
+engine1.quit()
+engine2.quit()
+#```
